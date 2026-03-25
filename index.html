@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Equilibrium Simulation (DSE Chemistry)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- MathJax for rendering mathematical formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        /* Custom scrollbar for a cleaner look */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* Sticky header for the table */
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #f1f5f9; /* slate-100 */
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col text-slate-800 font-sans p-4 md:p-6 lg:overflow-hidden">
+
+    <!-- Header & Tabs Area -->
+    <div class="max-w-7xl w-full mx-auto flex-shrink-0 mb-4 md:mb-6">
+        <h1 class="text-2xl md:text-3xl font-bold text-slate-800 mb-1 md:mb-2">Dynamic Equilibrium Simulation</h1>
+        <p class="text-slate-600 text-sm md:text-base">Reaction Model: <span class="font-semibold text-blue-600">A</span> ⇌ <span class="font-semibold text-red-600">B</span></p>
+        
+        <!-- Tab Navigation -->
+        <div class="mt-4 border-b border-slate-200">
+            <nav class="-mb-px flex space-x-6">
+                <button onclick="switchMode('basic')" id="tab-basic" class="border-blue-500 text-blue-600 border-b-2 py-2 px-1 text-sm md:text-base font-bold transition-colors">
+                    Basic Simulation
+                </button>
+                <button onclick="switchMode('perturb')" id="tab-perturb" class="border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 border-b-2 py-2 px-1 text-sm md:text-base font-medium transition-colors">
+                    Perturbation Mode (Le Chatelier)
+                </button>
+                <button onclick="switchMode('math')" id="tab-math" class="border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 border-b-2 py-2 px-1 text-sm md:text-base font-medium transition-colors">
+                    Mathematical Principles
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div id="simulationGrid" class="max-w-7xl w-full mx-auto flex-grow grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 min-h-0 overflow-y-auto lg:overflow-hidden pb-4 lg:pb-0">
+        
+        <!-- LEFT COLUMN: Controls & Table -->
+        <div class="lg:col-span-5 flex flex-col gap-4 md:gap-6 lg:h-full min-h-0 overflow-y-auto custom-scrollbar lg:pr-2 pb-2 lg:pb-0">
+            
+            <!-- Standard Controls Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 flex-shrink-0">
+                <h2 class="text-lg font-bold border-b border-slate-100 pb-2 mb-4">Initial Parameters</h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Initial [A]</label>
+                        <input type="number" id="initA" value="60" min="0" step="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Initial [B]</label>
+                        <input type="number" id="initB" value="0" min="0" step="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Rate Constant of Forward Rxn (k₁)</label>
+                        <input type="number" id="k1" value="0.5" min="0" max="1" step="0.05" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Rate Constant of Backward Rxn (k₂)</label>
+                        <input type="number" id="k2" value="0.1" min="0" max="1" step="0.05" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Time Steps</label>
+                        <input type="number" id="steps" value="30" min="5" max="200" step="5" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Theor. K<sub>c</sub> (k₁/k₂)</label>
+                        <div class="w-full h-[42px] px-3 bg-blue-50 rounded-lg border border-blue-200 flex justify-center items-center">
+                            <span id="theoreticalKc" class="font-bold text-blue-900 text-lg">5.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Perturbation Controls Card (Hidden by default) -->
+            <div id="perturbControlsCard" class="bg-white rounded-xl shadow-sm border border-orange-200 p-4 md:p-6 flex-shrink-0 hidden">
+                <h2 class="text-lg font-bold border-b border-orange-100 pb-2 mb-4 text-orange-800">Disturbance Settings</h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Time of Disturbance</label>
+                        <input type="number" id="pTime" value="15" min="1" step="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Target Species</label>
+                        <select id="pSpecies" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
+                            <option value="A">Species A</option>
+                            <option value="B">Species B</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Action</label>
+                        <select id="pAction" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
+                            <option value="add">Add (Spike)</option>
+                            <option value="remove">Remove</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-sm font-medium text-slate-600">Amount</label>
+                            <button onclick="document.getElementById('pAmount').value=0; runSimulation();" class="text-xs text-orange-600 hover:text-orange-800 font-medium px-2 py-0.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded transition-colors cursor-pointer">
+                                Reset (0)
+                            </button>
+                        </div>
+                        <input type="number" id="pAmount" value="0" min="0" step="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col flex-grow min-h-[350px]">
+                <h2 class="text-lg font-bold border-b border-slate-100 pb-2 mb-4">Concentration Data</h2>
+                
+                <div class="flex-grow overflow-y-auto custom-scrollbar border border-slate-200 rounded-lg relative">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-600 uppercase bg-slate-100">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold">Time</th>
+                                <th class="px-4 py-3 font-semibold text-blue-700">[A]</th>
+                                <th class="px-4 py-3 font-semibold text-red-700">[B]</th>
+                                <th class="px-4 py-3 font-semibold text-slate-700">[B] / [A]</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-200">
+                            <!-- Rows will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: Chart -->
+        <div class="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col min-h-[400px] lg:h-full min-h-0">
+            <h2 class="text-lg font-bold border-b border-slate-100 pb-2 mb-4">Concentration vs. Time</h2>
+            <div class="flex-grow relative w-full h-full min-h-0">
+                <canvas id="eqChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Math Principles Content (Hidden by default) -->
+    <div id="mathPrinciplesContent" class="max-w-4xl mx-auto w-full flex-grow bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 hidden overflow-y-auto custom-scrollbar mb-4 lg:mb-6 min-h-0">
+        <h2 class="text-2xl font-bold text-slate-800 mb-6 border-b border-slate-200 pb-3">Mathematical Principles of the Simulation</h2>
+
+        <div class="space-y-8 text-slate-700 leading-relaxed text-sm md:text-base">
+            
+            <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">1. Definitions</h3>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Let \([A]_t\) be the concentration of species A at time step \(t\).</li>
+                    <li>Let \([B]_t\) be the concentration of species B at time step \(t\).</li>
+                    <li>Let \(k_1\) be the rate constant of the forward reaction (\(A \rightarrow B\)).</li>
+                    <li>Let \(k_2\) be the rate constant of the backward reaction (\(B \rightarrow A\)).</li>
+                </ul>
+            </section>
+
+            <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">2. Continuous Rate Equations (Chemical Kinetics)</h3>
+                <p class="mb-3">For the reversible reaction \(\text{A} \rightleftharpoons \text{B}\), the overall rate of change for each species is determined by the difference between the forward and backward reaction rates.</p>
+                <div class="pl-4 border-l-4 border-blue-200 space-y-4 py-2">
+                    <div>
+                        <strong>Rate of change of [A]:</strong> The concentration of A decreases due to the forward reaction and increases due to the backward reaction.
+                        <div class="mt-2 text-center overflow-x-auto text-lg">
+                            \(\frac{d[A]}{dt} = -k_1[A]_t + k_2[B]_t\)
+                        </div>
+                    </div>
+                    <div>
+                        <strong>Rate of change of [B]:</strong> The concentration of B increases due to the forward reaction and decreases due to the backward reaction.
+                        <div class="mt-2 text-center overflow-x-auto text-lg">
+                            \(\frac{d[B]}{dt} = k_1[A]_t - k_2[B]_t\)
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">3. Discrete Time Simulation (Euler's Method)</h3>
+                <p class="mb-3">Because computers calculate in discrete steps rather than continuous time, this simulation uses a step-by-step numerical approximation (Euler's method) where each time step (\(\Delta t\)) equals \(1\) cycle.</p>
+                <p class="mb-3">The concentration of a species at the next time step (\(t+1\)) is equal to its current concentration plus the net change that occurred during that step:</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <strong class="block text-blue-700 mb-2">Concentration of A at time \(t+1\):</strong>
+                        <div class="text-center">
+                            \([A]_{t+1} = [A]_t + \left( -k_1[A]_t + k_2[B]_t \right)\)
+                            <br><br>
+                            \([A]_{t+1} = [A]_t - k_1[A]_t + k_2[B]_t\)
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <strong class="block text-red-700 mb-2">Concentration of B at time \(t+1\):</strong>
+                        <div class="text-center">
+                            \([B]_{t+1} = [B]_t + \left( k_1[A]_t - k_2[B]_t \right)\)
+                            <br><br>
+                            \([B]_{t+1} = [B]_t + k_1[A]_t - k_2[B]_t\)
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h3 class="text-lg font-bold text-slate-800 mb-3">4. The Equilibrium State</h3>
+                <p class="mb-3">Dynamic equilibrium is reached when the concentrations of macroscopic species no longer change. Mathematically, this means the rate of change is zero:</p>
+                <div class="text-center text-lg my-4">
+                    \(\frac{d[A]}{dt} = 0 \quad \text{and} \quad \frac{d[B]}{dt} = 0\)
+                </div>
+                <p class="mb-3">Setting the net rate equation to zero gives us:</p>
+                <div class="text-center text-lg my-4">
+                    \(0 = -k_1[A]_{eq} + k_2[B]_{eq}\) <br><br>
+                    \(k_1[A]_{eq} = k_2[B]_{eq}\)
+                </div>
+                <p class="mb-3">By rearranging this equation, we can derive the equilibrium constant (\(K_c\)) strictly from the kinetic rate constants:</p>
+                <div class="text-center text-xl my-4 font-bold bg-blue-50 py-4 rounded-lg border border-blue-100">
+                    \(K_c = \frac{[B]_{eq}}{[A]_{eq}} = \frac{k_1}{k_2}\)
+                </div>
+                <p>This proves that no matter what the initial concentrations of A and B are, the system will eventually stabilize at a ratio of \(k_1 / k_2\).</p>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let eqChartInstance = null;
+        let currentMode = 'basic'; // 'basic', 'perturb', or 'math'
+
+        // Function to handle tab switching
+        function switchMode(mode) {
+            currentMode = mode;
+            const tabBasic = document.getElementById('tab-basic');
+            const tabPerturb = document.getElementById('tab-perturb');
+            const tabMath = document.getElementById('tab-math');
+            const perturbCard = document.getElementById('perturbControlsCard');
+            const simulationGrid = document.getElementById('simulationGrid');
+            const mathContent = document.getElementById('mathPrinciplesContent');
+
+            // Reset tab stylings
+            const inactiveStyle = "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 border-b-2 py-2 px-1 text-sm md:text-base font-medium transition-colors";
+            tabBasic.className = inactiveStyle;
+            tabPerturb.className = inactiveStyle;
+            tabMath.className = inactiveStyle;
+
+            if (mode === 'basic') {
+                tabBasic.className = "border-blue-500 text-blue-600 border-b-2 py-2 px-1 text-sm md:text-base font-bold transition-colors";
+                perturbCard.classList.add('hidden');
+                mathContent.classList.add('hidden');
+                simulationGrid.classList.remove('hidden');
+                runSimulation();
+            } else if (mode === 'perturb') {
+                tabPerturb.className = "border-orange-500 text-orange-600 border-b-2 py-2 px-1 text-sm md:text-base font-bold transition-colors";
+                perturbCard.classList.remove('hidden');
+                mathContent.classList.add('hidden');
+                simulationGrid.classList.remove('hidden');
+                runSimulation();
+            } else if (mode === 'math') {
+                tabMath.className = "border-purple-500 text-purple-600 border-b-2 py-2 px-1 text-sm md:text-base font-bold transition-colors";
+                simulationGrid.classList.add('hidden');
+                mathContent.classList.remove('hidden');
+            }
+        }
+
+        // Function to run the simulation and update UI
+        function runSimulation() {
+            // Fetch standard inputs
+            const initA = parseFloat(document.getElementById('initA').value) || 0;
+            const initB = parseFloat(document.getElementById('initB').value) || 0;
+            const k1 = parseFloat(document.getElementById('k1').value) || 0;
+            const k2 = parseFloat(document.getElementById('k2').value) || 0;
+            const totalSteps = parseInt(document.getElementById('steps').value) || 20;
+
+            // Fetch perturbation inputs
+            const pTime = parseInt(document.getElementById('pTime').value) || 0;
+            const pSpecies = document.getElementById('pSpecies').value;
+            const pAction = document.getElementById('pAction').value;
+            const pAmount = Math.abs(parseFloat(document.getElementById('pAmount').value) || 0);
+
+            // Update Theoretical Kc display
+            const kcDisplay = (k2 === 0) ? "∞" : (k1 / k2).toFixed(2);
+            document.getElementById('theoreticalKc').innerHTML = kcDisplay;
+
+            let currentA = initA;
+            let currentB = initB;
+
+            // Using coordinate arrays [{x,y}] for linear graphing
+            let dataA = [];
+            let dataB = [];
+            let tableHTML = '';
+
+            // Run step-by-step simulation
+            for (let t = 0; t <= totalSteps; t++) {
+                
+                // Record the "Before" state of the current cycle
+                dataA.push({x: t, y: currentA});
+                dataB.push({x: t, y: currentB});
+
+                let ratioText = (currentA === 0) ? "∞" : (currentB / currentA).toFixed(4);
+
+                tableHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-4 py-2 text-slate-600">${t}</td>
+                        <td class="px-4 py-2 font-medium text-blue-600">${currentA.toFixed(4)}</td>
+                        <td class="px-4 py-2 font-medium text-red-600">${currentB.toFixed(4)}</td>
+                        <td class="px-4 py-2 text-slate-600">${ratioText}</td>
+                    </tr>
+                `;
+
+                // --- PERTURBATION LOGIC ---
+                // If we are in perturb mode, and we hit the designated time, alter concentrations
+                if (currentMode === 'perturb' && t === pTime) {
+                    
+                    if (pSpecies === 'A') {
+                        if (pAction === 'add') currentA += pAmount;
+                        else currentA = Math.max(0, currentA - pAmount); // Cap at 0
+                    } else {
+                        if (pAction === 'add') currentB += pAmount;
+                        else currentB = Math.max(0, currentB - pAmount); // Cap at 0
+                    }
+
+                    // Record the "After" state at the EXACT same time step (creating a vertical spike in the graph)
+                    dataA.push({x: t, y: currentA});
+                    dataB.push({x: t, y: currentB});
+
+                    let ratioTextAfter = (currentA === 0) ? "∞" : (currentB / currentA).toFixed(4);
+                    let actionWord = pAction === 'add' ? 'Added' : 'Removed';
+                    
+                    // Add highlighted row to the table
+                    tableHTML += `
+                        <tr class="bg-orange-50 hover:bg-orange-100 transition-colors">
+                            <td class="px-4 py-2 text-orange-800 font-semibold border-l-4 border-orange-500">
+                                ${t}
+                                <span class="block text-[11px] font-normal opacity-75 mt-0.5">${actionWord} ${pAmount} [${pSpecies}]</span>
+                            </td>
+                            <td class="px-4 py-2 font-bold text-blue-700">${currentA.toFixed(4)}</td>
+                            <td class="px-4 py-2 font-bold text-red-700">${currentB.toFixed(4)}</td>
+                            <td class="px-4 py-2 text-orange-800 font-medium">${ratioTextAfter}</td>
+                        </tr>
+                    `;
+                }
+                // --------------------------
+
+                // Calculate next state based on Euler method
+                let rateForward = k1 * currentA;
+                let rateBackward = k2 * currentB;
+
+                let nextA = currentA - rateForward + rateBackward;
+                let nextB = currentB + rateForward - rateBackward;
+
+                // Update for next loop iteration
+                currentA = Math.max(0, nextA); 
+                currentB = Math.max(0, nextB);
+            }
+
+            // Update Table DOM
+            document.getElementById('tableBody').innerHTML = tableHTML;
+
+            // Scroll table down slightly if a perturbation happens late, purely quality of life (optional)
+            // document.querySelector('.table-wrapper').scrollTop = 0; 
+
+            // Update Chart
+            updateChart(dataA, dataB, totalSteps);
+        }
+
+        // Function to render the Chart.js graph
+        function updateChart(dataA, dataB, totalSteps) {
+            const ctx = document.getElementById('eqChart').getContext('2d');
+            
+            // Destroy previous chart to prevent drawing over it
+            if (eqChartInstance) {
+                eqChartInstance.destroy();
+            }
+
+            // Default configuration for text colors
+            Chart.defaults.color = '#64748b'; // slate-500
+            Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+            eqChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Concentration of [A]',
+                            data: dataA,
+                            borderColor: '#3b82f6', // blue-500
+                            backgroundColor: '#3b82f6',
+                            borderWidth: 3,
+                            pointRadius: 2,
+                            pointHoverRadius: 6,
+                            tension: 0.2 // Slightly lower tension handles vertical lines better
+                        },
+                        {
+                            label: 'Concentration of [B]',
+                            data: dataB,
+                            borderColor: '#ef4444', // red-500
+                            backgroundColor: '#ef4444',
+                            borderWidth: 3,
+                            pointRadius: 2,
+                            pointHoverRadius: 6,
+                            tension: 0.2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: { size: 14, weight: 'bold' },
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)', // slate-900
+                            titleFont: { size: 13 },
+                            bodyFont: { size: 13 },
+                            padding: 12,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    return 'Time (Step): ' + tooltipItems[0].parsed.x;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear', // Critical for drawing true vertical lines on spikes
+                            min: 0,
+                            max: totalSteps,
+                            title: {
+                                display: true,
+                                text: 'Time (Cycles / Steps)',
+                                font: { size: 14, weight: '600' }
+                            },
+                            grid: {
+                                color: '#f1f5f9' // slate-100
+                            },
+                            ticks: {
+                                stepSize: 1, // Ensure only whole numbers are shown on x-axis
+                                precision: 0
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Concentration',
+                                font: { size: 14, weight: '600' }
+                            },
+                            grid: {
+                                color: '#f1f5f9' // slate-100
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Attach event listeners to all input fields to trigger recalculation on change
+        const inputs = ['initA', 'initB', 'k1', 'k2', 'steps', 'pTime', 'pSpecies', 'pAction', 'pAmount'];
+        inputs.forEach(id => {
+            document.getElementById(id).addEventListener('input', runSimulation);
+        });
+
+        // Run simulation once on initial page load
+        window.onload = runSimulation;
+
+    </script>
+</body>
+</html>
